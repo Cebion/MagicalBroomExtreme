@@ -4,8 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #ifdef USE_GLES
-#include <GLES/gl.h>
-#include <GLES/glext.h>
+#include <SDL_opengles.h>
 #else
 #if defined(PANDORA)
 #include <GL/gl.h>
@@ -279,7 +278,7 @@ void LunaSurface::Blit( long px, long py, long x1, long y1, long x2, long y2 )
         glBindTexture(GL_TEXTURE_2D, lpSurface);
 
         //GLint coords [] = {x1, y1, x2 - x1, y2 - y1};
-        GLint coords [] = {x1, y2 - 1, x2 - x1, y1 - y2};
+        GLint coords [] = {(GLint)(x1), (GLint)(y2 - 1), (GLint)(x2 - x1), (GLint)(y1 - y2)};
         glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_CROP_RECT_OES, coords);
         //glDrawTexiOES(px, py, 0, px2 - px, py2 - py);
         glDrawTexiOES(px, screen_height - py2, 0, px2 - px, py2 - py);

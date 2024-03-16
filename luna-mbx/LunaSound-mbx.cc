@@ -317,7 +317,7 @@ void LunaSound::Play( BOOL loop )
 
         SoundData *data = (SoundData *) lpSoundBuffer;
 
-        data->channel = Mix_PlayChannel(-1, &(data->chunk), (loop)?-1:0);
+        data->channel = Mix_PlayChannelTimed(-1, &(data->chunk), (loop)?-1:0, -1);
 
         bLoop = loop;
         bPlay = TRUE;

@@ -7,8 +7,7 @@
 #include <stdint.h>
 #include <SDL.h>
 #ifdef USE_GLES
-#include <GLES/gl.h>
-#include <GLES/glext.h>
+#include <SDL_opengles.h>
 #else
 #if defined(PANDORA)
 #include <GL/gl.h>

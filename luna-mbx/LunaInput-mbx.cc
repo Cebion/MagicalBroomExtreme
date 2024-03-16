@@ -5,18 +5,34 @@
 #include <SDL.h>
 
 #if defined(PANDORA)
-#define PANDORA_BUTTON_UP              (SDLK_UP)
-#define PANDORA_BUTTON_DOWN            (SDLK_DOWN)
-#define PANDORA_BUTTON_LEFT            (SDLK_LEFT)
-#define PANDORA_BUTTON_RIGHT           (SDLK_RIGHT)
-#define PANDORA_BUTTON_Y               (SDLK_PAGEUP)
-#define PANDORA_BUTTON_X               (SDLK_PAGEDOWN)
-#define PANDORA_BUTTON_A               (SDLK_HOME)
-#define PANDORA_BUTTON_B               (SDLK_END)
-#define PANDORA_BUTTON_L               (SDLK_RSHIFT)
-#define PANDORA_BUTTON_R               (SDLK_RCTRL)
-#define PANDORA_BUTTON_START           (SDLK_LALT)
-#define PANDORA_BUTTON_SELECT          (SDLK_LCTRL)
+#define PANDORA_BUTTON_UP              (SDL_SCANCODE_UP)
+#define PANDORA_BUTTON_DOWN            (SDL_SCANCODE_DOWN)
+#define PANDORA_BUTTON_LEFT            (SDL_SCANCODE_LEFT)
+#define PANDORA_BUTTON_RIGHT           (SDL_SCANCODE_RIGHT)
+#define PANDORA_BUTTON_Y               (SDL_SCANCODE_PAGEUP)
+#define PANDORA_BUTTON_X               (SDL_SCANCODE_PAGEDOWN)
+#define PANDORA_BUTTON_A               (SDL_SCANCODE_HOME)
+#define PANDORA_BUTTON_B               (SDL_SCANCODE_END)
+#define PANDORA_BUTTON_L               (SDL_SCANCODE_RSHIFT)
+#define PANDORA_BUTTON_R               (SDL_SCANCODE_RCTRL)
+#define PANDORA_BUTTON_START           (SDL_SCANCODE_LALT)
+#define PANDORA_BUTTON_SELECT          (SDL_SCANCODE_LCTRL)
+#elif defined(PYRA)
+#define PYRA_KEY_UP              (SDL_SCANCODE_UP)
+#define PYRA_KEY_DOWN            (SDL_SCANCODE_DOWN)
+#define PYRA_KEY_LEFT            (SDL_SCANCODE_LEFT)
+#define PYRA_KEY_RIGHT           (SDL_SCANCODE_RIGHT)
+#define PYRA_KEY_Y               (SDL_SCANCODE_PAGEUP)
+#define PYRA_KEY_X               (SDL_SCANCODE_PAGEDOWN)
+#define PYRA_KEY_A               (SDL_SCANCODE_HOME)
+#define PYRA_KEY_B               (SDL_SCANCODE_END)
+#define PYRA_KEY_INS             (SDL_SCANCODE_INSERT)
+#define PYRA_KEY_DEL             (SDL_SCANCODE_DELETE)
+#define PYRA_KEY_L1              (SDL_SCANCODE_RSHIFT)
+#define PYRA_KEY_R1              (SDL_SCANCODE_RCTRL)
+#define PYRA_KEY_R2              (SDL_SCANCODE_RALT)
+#define PYRA_KEY_START           (SDL_SCANCODE_LALT)
+#define PYRA_KEY_SELECT          (SDL_SCANCODE_LCTRL)
 #endif
 
 
@@ -66,7 +82,7 @@ BOOL LunaInput::Init( void )
         int stick;
         for (stick = 0; stick < num; stick++)
         {
-            if (!strcmp(SDL_JoystickName(stick), "nub0"))
+            if (!strcmp(SDL_JoystickNameForIndex(stick), "nub0"))
             {
                 JoystickData[0].lpDevice = SDL_JoystickOpen(stick);
                 break;
@@ -101,7 +117,7 @@ void LunaInput::UnInit( void )
 void LunaInput::RefreshKeyboard( void )
 {
     int numkeys;
-    Uint8 *keystate = SDL_GetKeyState(&numkeys);
+    const Uint8 *keystate = SDL_GetKeyboardState(&numkeys);
 
 #if defined(PANDORA)
     KeyboardData[DIK_UP] = (numkeys >= PANDORA_BUTTON_UP)?(keystate[PANDORA_BUTTON_UP]):0;
@@ -118,21 +134,36 @@ void LunaInput::RefreshKeyboard( void )
     KeyboardData[DIK_X] = (numkeys >= PANDORA_BUTTON_Y)?(keystate[PANDORA_BUTTON_Y]):0;
     KeyboardData[DIK_C] = (numkeys >= PANDORA_BUTTON_X)?(keystate[PANDORA_BUTTON_X]):0;
     KeyboardData[DIK_V] = (numkeys >= PANDORA_BUTTON_A)?(keystate[PANDORA_BUTTON_A]):0;
+#elif defined(PYRA)
+    KeyboardData[DIK_UP] = (numkeys >= PYRA_KEY_UP)?(keystate[PYRA_KEY_UP]):0;
+    KeyboardData[DIK_DOWN] = (numkeys >= PYRA_KEY_DOWN)?(keystate[PYRA_KEY_DOWN]):0;
+    KeyboardData[DIK_LEFT] = (numkeys >= PYRA_KEY_LEFT)?(keystate[PYRA_KEY_LEFT]):0;
+    KeyboardData[DIK_RIGHT] = (numkeys >= PYRA_KEY_RIGHT)?(keystate[PYRA_KEY_RIGHT]):0;
+
+    KeyboardData[DIK_NUMPAD2] = 0;
+    KeyboardData[DIK_NUMPAD4] = 0;
+    KeyboardData[DIK_NUMPAD6] = 0;
+    KeyboardData[DIK_NUMPAD8] = 0;
+
+    KeyboardData[DIK_Z] = (numkeys >= PYRA_KEY_B)?(keystate[PYRA_KEY_B]):0;
+    KeyboardData[DIK_X] = (numkeys >= PYRA_KEY_Y)?(keystate[PYRA_KEY_Y]):0;
+    KeyboardData[DIK_C] = (numkeys >= PYRA_KEY_X)?(keystate[PYRA_KEY_X]):0;
+    KeyboardData[DIK_V] = (numkeys >= PYRA_KEY_A)?(keystate[PYRA_KEY_A]):0;
 #else
-    KeyboardData[DIK_UP] = (numkeys >= SDLK_UP)?(keystate[SDLK_UP]):0;
-    KeyboardData[DIK_DOWN] = (numkeys >= SDLK_DOWN)?(keystate[SDLK_DOWN]):0;
-    KeyboardData[DIK_LEFT] = (numkeys >= SDLK_LEFT)?(keystate[SDLK_LEFT]):0;
-    KeyboardData[DIK_RIGHT] = (numkeys >= SDLK_RIGHT)?(keystate[SDLK_RIGHT]):0;
+    KeyboardData[DIK_UP] = (numkeys >= SDL_SCANCODE_UP)?(keystate[SDL_SCANCODE_UP]):0;
+    KeyboardData[DIK_DOWN] = (numkeys >= SDL_SCANCODE_DOWN)?(keystate[SDL_SCANCODE_DOWN]):0;
+    KeyboardData[DIK_LEFT] = (numkeys >= SDL_SCANCODE_LEFT)?(keystate[SDL_SCANCODE_LEFT]):0;
+    KeyboardData[DIK_RIGHT] = (numkeys >= SDL_SCANCODE_RIGHT)?(keystate[SDL_SCANCODE_RIGHT]):0;
 
-    KeyboardData[DIK_NUMPAD2] = (numkeys >= SDLK_KP2)?(keystate[SDLK_KP2]):0;
-    KeyboardData[DIK_NUMPAD4] = (numkeys >= SDLK_KP4)?(keystate[SDLK_KP4]):0;
-    KeyboardData[DIK_NUMPAD6] = (numkeys >= SDLK_KP6)?(keystate[SDLK_KP6]):0;
-    KeyboardData[DIK_NUMPAD8] = (numkeys >= SDLK_KP8)?(keystate[SDLK_KP8]):0;
+    KeyboardData[DIK_NUMPAD2] = (numkeys >= SDL_SCANCODE_KP_2)?(keystate[SDL_SCANCODE_KP_2]):0;
+    KeyboardData[DIK_NUMPAD4] = (numkeys >= SDL_SCANCODE_KP_4)?(keystate[SDL_SCANCODE_KP_4]):0;
+    KeyboardData[DIK_NUMPAD6] = (numkeys >= SDL_SCANCODE_KP_6)?(keystate[SDL_SCANCODE_KP_6]):0;
+    KeyboardData[DIK_NUMPAD8] = (numkeys >= SDL_SCANCODE_KP_8)?(keystate[SDL_SCANCODE_KP_8]):0;
 
-    KeyboardData[DIK_Z] = (numkeys >= SDLK_z)?(keystate[SDLK_z]):0;
-    KeyboardData[DIK_X] = (numkeys >= SDLK_x)?(keystate[SDLK_x]):0;
-    KeyboardData[DIK_C] = (numkeys >= SDLK_c)?(keystate[SDLK_c]):0;
-    KeyboardData[DIK_V] = (numkeys >= SDLK_v)?(keystate[SDLK_v]):0;
+    KeyboardData[DIK_Z] = (numkeys >= SDL_SCANCODE_Z)?(keystate[SDL_SCANCODE_Z]):0;
+    KeyboardData[DIK_X] = (numkeys >= SDL_SCANCODE_X)?(keystate[SDL_SCANCODE_X]):0;
+    KeyboardData[DIK_C] = (numkeys >= SDL_SCANCODE_C)?(keystate[SDL_SCANCODE_C]):0;
+    KeyboardData[DIK_V] = (numkeys >= SDL_SCANCODE_V)?(keystate[SDL_SCANCODE_V]):0;
 #endif
 }
 
@@ -145,10 +176,12 @@ void LunaInput::RefreshJoystick( void )
         JoystickData[0].Data.Px = 2 * SDL_JoystickGetAxis(JoystickData[0].lpDevice, 0);
         JoystickData[0].Data.Py = 2 * SDL_JoystickGetAxis(JoystickData[0].lpDevice, 1);
 
+#if !defined(PYRA)
         JoystickData[0].Data.Button[0] = SDL_JoystickGetButton(JoystickData[0].lpDevice, 0);
         JoystickData[0].Data.Button[1] = SDL_JoystickGetButton(JoystickData[0].lpDevice, 1);
         JoystickData[0].Data.Button[2] = SDL_JoystickGetButton(JoystickData[0].lpDevice, 2);
         JoystickData[0].Data.Button[3] = SDL_JoystickGetButton(JoystickData[0].lpDevice, 3);
+#endif
     }
 }
 

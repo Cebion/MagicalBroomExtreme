@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #ifdef USE_GLES
-#include <GLES/gl.h>
+#include <SDL_opengles.h>
 #else
 #include <SDL_opengl.h>
 #endif

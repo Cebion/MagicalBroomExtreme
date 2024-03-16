@@ -6,9 +6,7 @@
 #include <cmath>
 #include <SDL.h>
 #ifdef USE_GLES
-#include <GLES/gl.h>
-#include <GLES/glext.h>
-#include "EGLPort/eglport.h"
+#include <SDL_opengles.h>
 #else
 #if defined(PANDORA)
 #include <GL/gl.h>
@@ -17,9 +15,21 @@
 #include <SDL_opengl.h>
 #endif
 
+#if !defined(GL_VERSION_3_0) && !defined(GL_ES_VERSION_3_0)
+typedef const GLubyte *(* PFNGLGETSTRINGIPROC) (GLenum name, GLuint index);
+#endif
+
+#if !defined(GL_MAJOR_VERSION)
+#define GL_MAJOR_VERSION                  0x821B
+#endif
+
+#if !defined(GL_NUM_EXTENSIONS)
+#define GL_NUM_EXTENSIONS                 0x821D
+#endif
 
 static int IsFullColor = 0;
 static int IsFullColorTexture = 0;
+static SDL_GLContext Context = NULL;
 static unsigned int NowTexture, FrameTexture, FrameBuffer;
 static int TextureFormat, AlphaTextureFormat, BBFormat;
 
@@ -43,6 +53,8 @@ static GLfloat backbuffer_vtex[2*4] = {
     0.0f, 1.0f,
 };
 
+
+extern int sdl_versionnum;
 
 
 int featureFramebufferObject; // GL_ARB_framebuffer_object / GL_OES_framebuffer_object
@@ -113,19 +125,57 @@ BOOL Luna3D::GetAdapterInfo( void )
     return TRUE;
 }
 
+static void process_extension(const char *extension, int length)
+{
+    if ((length == 31) && (0 == strncmp(extension, "GL_ARB_texture_non_power_of_two", length)))
+    {
+        featureNpotTexture = 1;
+    }
+#ifdef USE_GLES
+    else if ((length == 19) && (0 == strncmp(extension, "GL_OES_texture_npot", length)))
+    {
+        featureNpotTexture = 1;
+    }
+    else if ((length == 19) && (0 == strncmp(extension, "GL_IMG_texture_npot", length)))
+    {
+        featureNpotTexture = 1;
+    }
+    else if ((length == 32) && (0 == strncmp(extension, "GL_APPLE_texture_2D_limited_npot", length)))
+    {
+        featureNpotTexture = 1;
+    }
+    else if ((length == 25) && (0 == strncmp(extension, "GL_OES_framebuffer_object", length)))
+    {
+        featureFramebufferObject = 1;
+    }
+    else if ((length == 19) && (0 == strncmp(extension, "GL_OES_draw_texture", length)))
+    {
+        featureDrawTexture = 1;
+    }
+    else if ((length == 30) && (0 == strncmp(extension, "GL_OES_required_internalformat", length)))
+    {
+        featureRequiredInternalFormat = 1;
+    }
+    else if ((length == 17) && (0 == strncmp(extension, "GL_OES_rgb8_rgba8", length)))
+    {
+        featureRgb8Rgba8 = 1;
+    }
+#else
+    else if ((length == 25) && (0 == strncmp(extension, "GL_ARB_framebuffer_object", length)))
+    {
+        featureFramebufferObject = 1;
+    }
+#endif
+}
+
 BOOL Luna3D::Create3DDevice( void )
 {
     long width, height;
+    int surface_width, surface_height;
 
     Luna::GetScreenSize(&width, &height);
 
-    SDL_Surface *Screen = SDL_GetVideoSurface();
-
-    int surface_width = Screen->w;
-    int surface_height = Screen->h;
-
-#if !defined(USE_GLES)
-    bool window_mode = Luna::GetWindowMode();
+    SDL_Window *Window = (SDL_Window *)Luna::GetWindowHandle();
 
     if (IsFullColor)
     {
@@ -141,46 +191,39 @@ BOOL Luna3D::Create3DDevice( void )
     }
     SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
-    Uint32 flags = SDL_OPENGL;
-    if (!window_mode)
+    Context = SDL_GL_CreateContext(Window);
+    if (Context == NULL)
     {
-        flags |= SDL_FULLSCREEN | SDL_NOFRAME;
-    }
-
-    Screen = SDL_SetVideoMode (surface_width, surface_height, (IsFullColor)?32:16, flags);
-    if ((Screen == NULL) && IsFullColor)
-    {
-        IsFullColor = 0;
-
-        SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 5 );
-        SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 6 );
-        SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 5 );
-
-        Screen = SDL_SetVideoMode (surface_width, surface_height, 16, flags);
-    }
-    if (Screen == NULL)
-    {
-        SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 5 );
-
-        Screen = SDL_SetVideoMode (surface_width, surface_height, 16, flags);
-    }
-    if (Screen == NULL)
-    {
-        LogOut("  ERROR Failed SDL_SetVideoMode: %s\n", SDL_GetError ());
+        LogOut("  ERROR Failed SDL_GL_CreateContext: %s\n", SDL_GetError ());
         return FALSE;
     }
-#else
-    if (EGL_Open(surface_width, surface_height) != 0)
+
+#if SDL_VERSION_ATLEAST(2,0,1)
+    if (sdl_versionnum >= SDL_VERSIONNUM(2,0,1))
     {
-        LogOut("  ERROR Unable to open EGL context\n");
-        return FALSE;
+        SDL_GL_GetDrawableSize(Window, &surface_width, &surface_height);
     }
+    else
 #endif
+    {
+        surface_width = width;
+        surface_height = height;
+    }
 
-    backbuffer_viewport.x = (surface_width - width) / 2;
-    backbuffer_viewport.y = (surface_height - height) / 2;
-    backbuffer_viewport.width = width;
-    backbuffer_viewport.height = height;
+    if (((float)surface_width) / width <= ((float)surface_height) / height)
+    {
+        backbuffer_viewport.x = 0;
+        backbuffer_viewport.width = surface_width;
+        backbuffer_viewport.height = (surface_width * height) / width;
+        backbuffer_viewport.y = (surface_height - backbuffer_viewport.height) / 2;
+    }
+    else
+    {
+        backbuffer_viewport.y = 0;
+        backbuffer_viewport.height = surface_height;
+        backbuffer_viewport.width = (surface_height * width) / height;
+        backbuffer_viewport.x = (surface_width - backbuffer_viewport.width) / 2;
+    }
 
     featureFramebufferObject = 0;
     featureNpotTexture = 0;
@@ -190,78 +233,68 @@ BOOL Luna3D::Create3DDevice( void )
     featureRgb8Rgba8 = 0;
 #endif
 
-    const char *extensions = (const char *) glGetString(GL_EXTENSIONS);
-    if (extensions != NULL)
-    while (*extensions != 0)
+    GLint gl_major = 0;
+    glGetIntegerv(GL_MAJOR_VERSION, &gl_major);
+    if (!gl_major) glGetError();
+
+    PFNGLGETSTRINGIPROC glGetStringi = NULL;
+    if (gl_major >= 3)
     {
-        int length;
-        const char *delim = strchr(extensions, ' ');
-        if (delim == NULL)
-        {
-            length = strlen(extensions);
-        }
-        else
-        {
-            length = (uintptr_t)delim - (uintptr_t)extensions;
-        }
+        glGetStringi = (PFNGLGETSTRINGIPROC) SDL_GL_GetProcAddress("glGetStringi");
+    }
 
-        if ((length == 31) && (0 == strncmp(extensions, "GL_ARB_texture_non_power_of_two", length)))
-        {
-            featureNpotTexture = 1;
-        }
-#ifdef USE_GLES
-        else if ((length == 19) && (0 == strncmp(extensions, "GL_OES_texture_npot", length)))
-        {
-            featureNpotTexture = 1;
-        }
-        else if ((length == 19) && (0 == strncmp(extensions, "GL_IMG_texture_npot", length)))
-        {
-            featureNpotTexture = 1;
-        }
-        else if ((length == 32) && (0 == strncmp(extensions, "GL_APPLE_texture_2D_limited_npot", length)))
-        {
-            featureNpotTexture = 1;
-        }
-        else if ((length == 25) && (0 == strncmp(extensions, "GL_OES_framebuffer_object", length)))
-        {
-            featureFramebufferObject = 1;
-        }
-        else if ((length == 19) && (0 == strncmp(extensions, "GL_OES_draw_texture", length)))
-        {
-            featureDrawTexture = 1;
-        }
-        else if ((length == 30) && (0 == strncmp(extensions, "GL_OES_required_internalformat", length)))
-        {
-            featureRequiredInternalFormat = 1;
-        }
-        else if ((length == 17) && (0 == strncmp(extensions, "GL_OES_rgb8_rgba8", length)))
-        {
-            featureRgb8Rgba8 = 1;
-        }
-#else
-        else if ((length == 25) && (0 == strncmp(extensions, "GL_ARB_framebuffer_object", length)))
-        {
-            featureFramebufferObject = 1;
-        }
-#endif
+    if (glGetStringi != NULL)
+    {
+        int index;
+        GLint gl_num_extensions = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
 
-        if (delim == NULL)
+        for (index = 0; index < gl_num_extensions; index++)
         {
-            break;
+            const char *extension = (const char *)glGetStringi(GL_EXTENSIONS, index);
+            if (extension != NULL)
+            {
+                process_extension(extension, strlen(extension));
+            }
         }
-        else
+    }
+    else
+    {
+        const char *extensions = (const char *) glGetString(GL_EXTENSIONS);
+        if (extensions != NULL)
+        while (*extensions != 0)
         {
-            extensions += length + 1;
+            int length;
+            const char *delim = strchr(extensions, ' ');
+            if (delim == NULL)
+            {
+                length = strlen(extensions);
+            }
+            else
+            {
+                length = (uintptr_t)delim - (uintptr_t)extensions;
+            }
+
+            process_extension(extensions, length);
+
+            if (delim == NULL)
+            {
+                break;
+            }
+            else
+            {
+                extensions += length + 1;
+            }
         }
     }
 
     if (featureFramebufferObject)
     {
 #ifdef USE_GLES
-        glBindFramebuffer = (PFNGLBINDFRAMEBUFFEROESPROC) eglGetProcAddress("glBindFramebufferOES");
-        glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSOESPROC) eglGetProcAddress("glDeleteFramebuffersOES");
-        glGenFramebuffers = (PFNGLGENFRAMEBUFFERSOESPROC) eglGetProcAddress("glGenFramebuffersOES");
-        glFramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DOESPROC) eglGetProcAddress("glFramebufferTexture2DOES");
+        glBindFramebuffer = (PFNGLBINDFRAMEBUFFEROESPROC) SDL_GL_GetProcAddress("glBindFramebufferOES");
+        glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSOESPROC) SDL_GL_GetProcAddress("glDeleteFramebuffersOES");
+        glGenFramebuffers = (PFNGLGENFRAMEBUFFERSOESPROC) SDL_GL_GetProcAddress("glGenFramebuffersOES");
+        glFramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DOESPROC) SDL_GL_GetProcAddress("glFramebufferTexture2DOES");
 #else
         glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC) SDL_GL_GetProcAddress("glBindFramebuffer");
         glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC) SDL_GL_GetProcAddress("glDeleteFramebuffers");
@@ -280,12 +313,12 @@ BOOL Luna3D::Create3DDevice( void )
     }
 
 #ifdef USE_GLES
-    //glGenerateMipmap = (PFNGLGENERATEMIPMAPOESPROC) eglGetProcAddress("glGenerateMipmapOES");
+    //glGenerateMipmap = (PFNGLGENERATEMIPMAPOESPROC) SDL_GL_GetProcAddress("glGenerateMipmapOES");
     glGenerateMipmap = NULL;
 
     if (featureDrawTexture)
     {
-        glDrawTexiOES = (PFNGLDRAWTEXIOESPROC) eglGetProcAddress("glDrawTexiOES");
+        glDrawTexiOES = (PFNGLDRAWTEXIOESPROC) SDL_GL_GetProcAddress("glDrawTexiOES");
 
         if (glDrawTexiOES == NULL)
         {
@@ -368,6 +401,8 @@ BOOL Luna3D::Create3DDevice( void )
 
     screen_width = width;
     screen_height = height;
+
+    SDL_GL_SwapWindow(Window);
 
     return TRUE;
 }
@@ -496,9 +531,11 @@ void Luna3D::UnInit( void )
         FrameTexture = 0;
     }
 
-#ifdef USE_GLES
-    EGL_Close();
-#endif
+    if (Context != NULL)
+    {
+        SDL_GL_DeleteContext(Context);
+        Context = NULL;
+    }
 }
 
 void Luna3D::EnableFullColorMode( void )
@@ -731,11 +768,7 @@ void Luna3D::Refresh( RECT *dest, RECT *src, HWND hWnd )
         glPopMatrix();
     }
 
-#ifdef USE_GLES
-    EGL_SwapBuffers();
-#else
-    SDL_GL_SwapBuffers();
-#endif
+    SDL_GL_SwapWindow((SDL_Window *)Luna::GetWindowHandle());
 
     Luna::AddFPS(1);
 }

@@ -899,9 +899,10 @@ public:
 	static BOOL GetWindowMode( void );
 	static void GetScreenSize( long *w, long *h );
 	/*static void GetWindowPos( long *x, long *y );
-	static HINSTANCE GetInstanceHandle( void );
-	static HWND GetWindowHandle( void );
-	static void GetMemorySize( unsigned long *total, unsigned long *free );
+	static HINSTANCE GetInstanceHandle( void );*/
+	//static HWND GetWindowHandle( void );
+	static void* GetWindowHandle( void );
+	/*static void GetMemorySize( unsigned long *total, unsigned long *free );
 	static char *GetCommnadLine( long index );
 	static long GetCommnadLineNum( void );*/
 	static unsigned long GetCounter( void );

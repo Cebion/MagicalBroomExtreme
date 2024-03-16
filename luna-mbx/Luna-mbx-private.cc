@@ -2,8 +2,7 @@
 
 #include <cmath>
 #ifdef USE_GLES
-#include <GLES/gl.h>
-#include <GLES/glext.h>
+#include <SDL_opengles.h>
 #else
 #include <SDL_opengl.h>
 #endif

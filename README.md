@@ -2,7 +2,7 @@
 
 Magical Broom Extreme is a freeware horizontal shooter from Japan, where the player controls a witch flying on a broom.
 
-This fork uses SDL and OpenGL(ES) instead of DirectX 8.1 allowing the game to run on Linux (and other operating systems) and on non-X86 platforms (x64, arm, ...).
+This fork uses SDL2 and OpenGL(ES) instead of DirectX 8.1 allowing the game to run on Linux (and other operating systems) and on non-X86 platforms (x64, arm, ...).
 
 ----
 
@@ -17,7 +17,7 @@ The projects contains following directories:
 * **mbx_src**
   * Original VisualC++6.0 project containing the source code of the game and various utilities.
 * **luna-mbx**
-  * Reimplementation of a subset of Luna library (the subset used by Magical Broom Extreme) using SDL and OpenGL(ES) instead of DirectX 8.1.
+  * Reimplementation of a subset of Luna library (the subset used by Magical Broom Extreme) using SDL2 and OpenGL(ES) instead of DirectX 8.1.
 
 ----
 

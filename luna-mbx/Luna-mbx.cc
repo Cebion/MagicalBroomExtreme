@@ -44,13 +44,19 @@ static long EnableAPI;
 static unsigned long AppCounter;
 
 
+static SDL_Window *Window;
+
 static SDL_Cursor *DefaultCursor;
 static SDL_Cursor *NoCursor;
 static Uint8 NoCursorData;
 
 
+int sdl_versionnum = 0;
+
+
 void LogOut(const char *format, ...)
 {
+#if !defined(PANDORA) && !defined(PYRA)
     FILE *f;
     va_list va;
 
@@ -65,6 +71,7 @@ void LogOut(const char *format, ...)
         }
         va_end(va);
     }
+#endif
 }
 
 
@@ -193,6 +200,11 @@ void Luna::UnInitAPI( void )
     }
 }
 
+static void destroy_window(void)
+{
+    SDL_DestroyWindow(Window);
+}
+
 BOOL Luna::InitWindow( void )
 {
     if ( SDL_Init (SDL_INIT_VIDEO | SDL_INIT_TIMER ) )
@@ -203,23 +215,40 @@ BOOL Luna::InitWindow( void )
 
     atexit(SDL_Quit);
 
+    SDL_version linked;
+    SDL_GetVersion(&linked);
+    sdl_versionnum = SDL_VERSIONNUM(linked.major, linked.minor, linked.patch);
+
     DefaultCursor = SDL_GetCursor();
     NoCursorData = 0;
     NoCursor = SDL_CreateCursor(&NoCursorData, &NoCursorData, 8, 1, 0, 0);
 
-    SDL_Surface *Screen;
-#if defined(PANDORA)
-    if (!bWindow) Screen = SDL_SetVideoMode (800, 480, 0, SDL_SWSURFACE | SDL_FULLSCREEN);
-    else
+#ifdef USE_GLES
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+
+    // workaround:
+    // NVIDIA 64-bit linux driver version 525.147.05
+    // ERROR Failed SDL_CreateWindow: unable to create an EGL window surface (call to eglCreateWindowSurface failed, reporting an error of EGL_BAD_ATTRIBUTE)
+    SDL_setenv("EGL_EXT_present_opaque", "1", 1); // disable this extension
 #endif
-    Screen = SDL_SetVideoMode (Width, Height, 0, SDL_SWSURFACE | (bWindow?0:SDL_FULLSCREEN));
-    if (Screen == NULL)
+
+    if (bWindow)
     {
-        LogOut("  ERROR Failed SDL_SetVideoMode: %s\n", SDL_GetError ());
+        Window = SDL_CreateWindow (Title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, Width, Height, SDL_WINDOW_OPENGL);
+    }
+    else
+    {
+        Window = SDL_CreateWindow (Title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 0, 0, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
+    if (Window == NULL)
+    {
+        LogOut("  ERROR Failed SDL_CreateWindow: %s\n", SDL_GetError ());
         return FALSE;
     }
 
-    SDL_WM_SetCaption(Title, NULL);
+    atexit(destroy_window);
 
     puts("■ Luna Ver. 2.55... 2002.07.12");
     puts(" -> Create Window...");
@@ -263,7 +292,7 @@ void Luna::WaitFrame( void )
         if ( bShowFPS )
         {
             sprintf(Caption, "%s  FPS[%d] PPS[%d]", Title, FPS, PPS);
-            SDL_WM_SetCaption(Caption, NULL);
+            SDL_SetWindowTitle(Window, Caption);
         }
     }
 }
@@ -533,6 +562,11 @@ void Luna::GetScreenSize( long *w, long *h )
 {
     if (w != NULL) *w = Width;
     if (h != NULL) *h = Height;
+}
+
+void* Luna::GetWindowHandle( void )
+{
+    return Window;
 }
 
 unsigned long Luna::GetCounter( void )

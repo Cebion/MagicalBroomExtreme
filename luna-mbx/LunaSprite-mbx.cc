@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <cmath>
 #ifdef USE_GLES
-#include <GLES/gl.h>
+#include <SDL_opengles.h>
 #else
 #include <SDL_opengl.h>
 #endif
