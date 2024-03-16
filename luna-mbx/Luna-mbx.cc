@@ -38,7 +38,7 @@ static int FPS;
 static int _FPS;
 static int PPS;
 static int _PPS;
-static char Directory[128];
+static char Directory[256];
 static BOOL bResize;
 static long EnableAPI;
 static unsigned long AppCounter;
@@ -415,19 +415,37 @@ void Luna::SetLogFile ( const char *file )
 #if (defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__))
     if ( file[1] == ':' )
     {
+        if (strlen(file) >= sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
         strcpy(LogFile, file);
     }
     else if ( (file[0] == '\\') || ( file[0] == '/' ) )
     {
-        sprintf(LogFile, "%c:%s", Directory[0], file);
+        if (snprintf(LogFile, sizeof(LogFile), "%c:%s", Directory[0], file) >= sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
     }
     else
     {
-        sprintf(LogFile, "%s\\%s", Directory, file);
+        if (snprintf(LogFile, sizeof(LogFile), "%s\\%s", Directory, file) >= sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
     }
 #else
     if ( file[0] == '/' )
     {
+        if (strlen(file) >= sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
         strcpy(LogFile, file);
     }
     else if ( ( file[0] == '~' ) && ( file[1] == '/' ) )
@@ -439,11 +457,19 @@ void Luna::SetLogFile ( const char *file )
             homedir = getpwuid(getuid())->pw_dir;
         }
 
-        sprintf(LogFile, "%s/%s", homedir, &(file[2]));
+        if (snprintf(LogFile, sizeof(LogFile), "%s/%s", homedir, &(file[2])) >= (int)sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
     }
     else
     {
-        sprintf(LogFile, "%s/%s", Directory, file);
+        if (snprintf(LogFile, sizeof(LogFile), "%s/%s", Directory, file) >= (int)sizeof(LogFile))
+        {
+            LogFile[0] = 0;
+            return;
+        }
     }
 #endif
 
@@ -455,9 +481,12 @@ void Luna::SetUseOption( long flag )
     EnableAPI = flag;
 }
 
-void Luna::SetWindowTitle( const char *title )
+void Luna::SetWindowTitleUtf8( const char *title )
 {
-    strcpy(Title, title);
+    int len = strlen(title);
+    if (len >= (int)sizeof(Title)) len = sizeof(Title) - 1;
+    memcpy(Title, title, len);
+    Title[len] = 0;
 }
 
 void Luna::SetScreenMode( long w, long h, BOOL window, BOOL resize )

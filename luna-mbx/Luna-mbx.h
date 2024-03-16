@@ -882,7 +882,8 @@ public:
 	static void SetLogFile ( const char *file );
 	static void SetUseOption( long flag );
 	//static void SetWindowTitle( char *title );
-	static void SetWindowTitle( const char *title );
+	//static void SetWindowTitle( const char *title );
+	static void SetWindowTitleUtf8( const char *title );
 	static void SetScreenMode( long w, long h, BOOL window = false, BOOL resize = false );
 	static void SetShowMouse( BOOL flag );
 	static void SetFPS( long fps );
