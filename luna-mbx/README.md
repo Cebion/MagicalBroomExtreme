@@ -10,6 +10,8 @@ Use following definitions to alter compilation:
 
 * USE_GLES
   * use OpenGL ES 1 instead of OpenGL
+* USE_SPEEXDSP_RESAMPLER
+  * use [speexdsp library](https://github.com/xiph/speexdsp/ "speexdsp library") for resampling audio
 * PANDORA
   * use code specific for Pandora console
 * PYRA

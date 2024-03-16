@@ -4,6 +4,12 @@
 #include <cstdlib>
 #include <SDL.h>
 #include <SDL_mixer.h>
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+#undef USE_SPEEXDSP_RESAMPLER
+#endif
+#ifdef USE_SPEEXDSP_RESAMPLER
+#include <speex/speex_resampler.h>
+#endif
 
 
 //==========================================================================
@@ -174,12 +180,6 @@ void LunaSound::LoadWave( const char *pack, const char *data )
     wf.cbSize          = SDL_Swap16(wf.cbSize         );
 #endif
 
-    DataBuffer = (Uint8 *) malloc(DataSize);
-
-    fread(DataBuffer, 1, DataSize, f);
-    fclose(f);
-    f = NULL;
-
     frequency = wf.nSamplesPerSec;
     format = (wf.wBitsPerSample == 16)?AUDIO_S16LSB:AUDIO_U8;
     channels = wf.nChannels;
@@ -190,29 +190,135 @@ void LunaSound::LoadWave( const char *pack, const char *data )
        )
     {
         SDL_AudioCVT cvt;
+        Uint8 *ConvertBuffer;
 
-        memset(&cvt, 0, sizeof(SDL_AudioCVT));
-        if ( SDL_BuildAudioCVT(&cvt, format, channels, frequency, AudioFormat, AudioChannels, AudioRate) < 0 )
+#ifdef USE_SPEEXDSP_RESAMPLER
+        DataBuffer = NULL;
+
+        if ((AudioRate != frequency) && ((channels == 1) || (channels == 2)))
         {
-            free(DataBuffer);
-            LogMsg = "  ERROR Failed SDL_BuildAudioCVT\n";
-            goto logout_and_close;
+            int index, src_samples, dst_samples, err;
+            SpeexResamplerState *resampler;
+            spx_uint32_t in_len, out_len;
+
+            if ( ( AudioFormat != AUDIO_S16LSB ) ||
+                 ( AudioChannels != channels )
+               )
+            {
+                // after resampling, use SDL to convert format and/or number of channels
+                if ( SDL_BuildAudioCVT(&cvt, AUDIO_S16LSB, channels, AudioRate, AudioFormat, AudioChannels, AudioRate) < 0 )
+                {
+                    LogMsg = "  ERROR Failed SDL_BuildAudioCVT\n";
+                    goto logout_and_close;
+                }
+            }
+            else
+            {
+                // after resampling, no additional conversion is needed
+                cvt.len_mult = 0;
+            }
+
+            resampler = speex_resampler_init(channels, frequency, AudioRate, SPEEX_RESAMPLER_QUALITY_DESKTOP, &err);
+            if (err != RESAMPLER_ERR_SUCCESS)
+            {
+                LogMsg = "  ERROR Failed speex_resampler_init\n";
+                goto logout_and_close;
+            }
+
+            ConvertBuffer = (Uint8 *) malloc(DataSize * (format == AUDIO_U8 ? 2 : 1));
+
+            fread(ConvertBuffer, 1, DataSize, f);
+            fclose(f);
+            f = NULL;
+
+            if (format == AUDIO_U8)
+            {
+                // first convert data from U8 to S16
+                for (index = DataSize - 1; index >= 0; index--)
+                {
+                    ((Sint16 *)ConvertBuffer)[index] = (ConvertBuffer[index] ^ 0x80) << 8;
+                }
+
+                format = AUDIO_S16LSB;
+                DataSize *= 2;
+            }
+
+            src_samples = DataSize >> channels;
+            dst_samples = (src_samples * (int64_t)AudioRate) / frequency;
+
+            DataBuffer = (Uint8 *) malloc((dst_samples << channels) * (cvt.len_mult ? cvt.len_mult : 1));
+
+            in_len = src_samples;
+            out_len = dst_samples;
+
+            if (channels == 1)
+            {
+                err = speex_resampler_process_int(resampler, 0, (const spx_int16_t *)ConvertBuffer, &in_len, (spx_int16_t *)DataBuffer, &out_len);
+            }
+            else
+            {
+                err = speex_resampler_process_interleaved_int(resampler, (const spx_int16_t *)ConvertBuffer, &in_len, (spx_int16_t *)DataBuffer, &out_len);
+            }
+
+            free(ConvertBuffer);
+            speex_resampler_destroy(resampler);
+
+            if ((err != RESAMPLER_ERR_SUCCESS) || ((in_len != (spx_uint32_t)src_samples) && (out_len != (spx_uint32_t)dst_samples)))
+            {
+                LogMsg = "  ERROR Failed speex_resampler_process\n";
+                goto logout_and_close;
+            }
+
+            frequency = AudioRate;
+            DataSize = out_len << channels;
+
+            if (cvt.len_mult != 0)
+            {
+                ConvertBuffer = DataBuffer;
+                DataBuffer = NULL;
+            }
+        }
+        else
+#endif
+        {
+            if ( SDL_BuildAudioCVT(&cvt, format, channels, frequency, AudioFormat, AudioChannels, AudioRate) < 0 )
+            {
+                LogMsg = "  ERROR Failed SDL_BuildAudioCVT\n";
+                goto logout_and_close;
+            }
+
+            ConvertBuffer = (Uint8 *) malloc(DataSize * cvt.len_mult);
+
+            fread(ConvertBuffer, 1, DataSize, f);
+            fclose(f);
+            f = NULL;
         }
 
-        DataBuffer = (Uint8 *) realloc(DataBuffer, DataSize * cvt.len_mult);
-
-        cvt.buf = DataBuffer;
-        cvt.len = DataSize;
-
-        if ( SDL_ConvertAudio(&cvt) )
+#ifdef USE_SPEEXDSP_RESAMPLER
+        if (cvt.len_mult != 0)
+#endif
         {
-            free(DataBuffer);
-            LogMsg = "  ERROR Failed SDL_ConvertAudio\n";
-            goto logout_and_close;
-        }
+            cvt.buf = ConvertBuffer;
+            cvt.len = DataSize;
 
-        DataSize = cvt.len * cvt.len_ratio;
-        DataBuffer = (Uint8 *) realloc(cvt.buf, DataSize);
+            if ( SDL_ConvertAudio(&cvt) )
+            {
+                free(ConvertBuffer);
+                LogMsg = "  ERROR Failed SDL_ConvertAudio\n";
+                goto logout_and_close;
+            }
+
+            DataSize = cvt.len * cvt.len_ratio;
+            DataBuffer = (Uint8 *) realloc(cvt.buf, DataSize);
+        }
+    }
+    else
+    {
+        DataBuffer = (Uint8 *) malloc(DataSize);
+
+        fread(DataBuffer, 1, DataSize, f);
+        fclose(f);
+        f = NULL;
     }
 
     sdata = (SoundData *) malloc(sizeof(SoundData));
@@ -242,7 +348,7 @@ BOOL LunaSound::Init( void )
 
     if ( !SDL_InitSubSystem(SDL_INIT_AUDIO) )
     {
-        int frequency, channels, buffersize;
+        int frequency, channels, buffersize, result;
         Uint16 format;
 
         frequency = 44100;
@@ -250,7 +356,18 @@ BOOL LunaSound::Init( void )
         channels = 2;
         buffersize = 4096;
 
-        if ( !Mix_OpenAudio(frequency, format, channels, buffersize))
+#if SDL_VERSIONNUM(SDL_MIXER_MAJOR_VERSION, SDL_MIXER_MINOR_VERSION, SDL_MIXER_PATCHLEVEL) >= SDL_VERSIONNUM(2,0,2)
+        const SDL_version *link_version = Mix_Linked_Version();
+        if (SDL_VERSIONNUM(link_version->major, link_version->minor, link_version->patch) >= SDL_VERSIONNUM(2,0,2))
+        {
+            result = Mix_OpenAudioDevice(frequency, format, channels, buffersize, NULL, SDL_AUDIO_ALLOW_ANY_CHANGE);
+        }
+        else
+#endif
+        {
+            result = Mix_OpenAudio(frequency, format, channels, buffersize);
+        }
+        if (result == 0)
         {
             Mix_QuerySpec(&frequency, &format, &channels);
             AudioRate = frequency;
